@@ -7,14 +7,19 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
+  Calendar,
   Crown,
   GitBranch,
+  Layers,
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  Palette,
   Radio,
   Settings,
+  Share2,
   Shield,
+  Sparkles,
   User,
   UserCog,
   Users,
@@ -67,6 +72,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar";
+import { BrandSwitcher } from "@/components/brands/BrandSwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,6 +100,15 @@ const navItems: NavItem[] = [
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
   { href: "/automations", label: "Automations", icon: Zap },
   { href: "/flows", label: "Flows", icon: Workflow, beta: true },
+];
+
+const contentNavItems: NavItem[] = [
+  { href: "/brands", label: "Brands", icon: Palette },
+  { href: "/ideas", label: "Ideias", icon: Sparkles },
+  { href: "/packages", label: "Pacotes", icon: Layers },
+  { href: "/canais", label: "Canais", icon: Share2 },
+  { href: "/posts", label: "Posts", icon: MessageSquare },
+  { href: "/calendar", label: "Calendário", icon: Calendar },
 ];
 
 const bottomNavItems = [
@@ -238,6 +253,39 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                         <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
                       </span>
                     )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="my-4 border-t border-border" />
+
+          {/* Conteúdo (Publik) */}
+          <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+            Conteúdo
+          </p>
+          <div className="mb-2">
+            <BrandSwitcher />
+          </div>
+          <ul className="flex flex-col gap-1">
+            {contentNavItems.map((item) => {
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span className="flex-1">{item.label}</span>
                   </Link>
                 </li>
               );

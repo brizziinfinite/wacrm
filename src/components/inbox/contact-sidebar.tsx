@@ -15,16 +15,21 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useBrands } from "@/lib/content/hooks/useBrands";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  conversationId: string | null;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversationId }: ContactSidebarProps) {
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -32,6 +37,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+  const [sourceTitle, setSourceTitle] = useState("");
+  const [sourceBody, setSourceBody] = useState("");
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("");
+  const [savingSource, setSavingSource] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const { brands } = useBrands();
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -114,6 +125,27 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     }
     setAddingNote(false);
   }, [contact, newNote, accountId]);
+
+  const handleSaveSource = useCallback(async () => {
+    if (!sourceTitle.trim() || !sourceBody.trim() || !accountId) return;
+    setSavingSource(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("content_sources").insert({
+      account_id:   accountId,
+      brand_id:     selectedBrandId || null,
+      title:        sourceTitle.trim(),
+      body:         sourceBody.trim(),
+      source_type:  "conversation",
+      source_ref:   conversationId,
+      contact_name: contact?.name ?? contact?.phone ?? null,
+    });
+    setSavingSource(false);
+    if (error) { toast.error("Erro ao salvar fonte: " + error.message); return; }
+    toast.success("Fonte salva!", { description: "Disponível para o agente de ideias." });
+    setSourceTitle("");
+    setSourceBody("");
+    setSourceOpen(false);
+  }, [sourceTitle, sourceBody, accountId, selectedBrandId, conversationId, contact]);
 
   if (!contact) {
     return (
@@ -291,6 +323,63 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 ))}
               </div>
             </div>
+          </div>
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Fonte de Conteúdo */}
+          <div>
+            <button
+              onClick={() => setSourceOpen((v) => !v)}
+              className="flex w-full items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Sparkles className="h-3 w-3" />
+              Fonte de Conteúdo
+              <span className="ml-auto">{sourceOpen ? "−" : "+"}</span>
+            </button>
+
+            {sourceOpen && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Título da fonte..."
+                  value={sourceTitle}
+                  onChange={(e) => setSourceTitle(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                />
+                <textarea
+                  placeholder="Insight ou trecho da conversa para virar ideia de conteúdo..."
+                  value={sourceBody}
+                  onChange={(e) => setSourceBody(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
+                />
+                {brands.length > 0 && (
+                  <select
+                    value={selectedBrandId}
+                    onChange={(e) => setSelectedBrandId(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  >
+                    <option value="">Brand (opcional)</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                )}
+                <Button
+                  size="sm"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={handleSaveSource}
+                  disabled={savingSource || !sourceTitle.trim() || !sourceBody.trim()}
+                >
+                  {savingSource ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" />Salvando...</>
+                  ) : (
+                    <><Sparkles className="h-3 w-3" />Salvar como fonte</>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </ScrollArea>
