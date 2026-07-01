@@ -17,6 +17,7 @@ import {
   Palette,
   Radio,
   Settings,
+  Share2,
   Shield,
   Sparkles,
   User,
@@ -105,6 +106,7 @@ const contentNavItems: NavItem[] = [
   { href: "/brands", label: "Brands", icon: Palette },
   { href: "/ideas", label: "Ideias", icon: Sparkles },
   { href: "/packages", label: "Pacotes", icon: Layers },
+  { href: "/canais", label: "Canais", icon: Share2 },
   { href: "/posts", label: "Posts", icon: MessageSquare },
   { href: "/calendar", label: "Calendário", icon: Calendar },
 ];

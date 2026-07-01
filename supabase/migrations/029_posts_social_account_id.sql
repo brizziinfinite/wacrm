@@ -1,0 +1,1 @@
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS social_account_id UUID REFERENCES social_accounts(id) ON DELETE SET NULL;

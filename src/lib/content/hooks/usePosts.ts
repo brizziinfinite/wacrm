@@ -13,6 +13,7 @@ export interface Post {
   scheduled_at: string | null;
   status: PostStatus;
   platform: string | null;
+  social_account_id: string | null;
   created_at: string;
   updated_at: string;
 }
