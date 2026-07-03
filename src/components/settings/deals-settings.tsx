@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Loader2 } from "lucide-react";
+import { Coins, Loader2, Zap } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,6 +17,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { SettingsPanelHead } from "./settings-panel-head";
+import type { Pipeline } from "@/types";
 
 /**
  * Deals settings — account-wide default currency.
@@ -40,13 +41,46 @@ export function DealsSettings() {
   const [selected, setSelected] = useState(defaultCurrency);
   const [saving, setSaving] = useState(false);
 
+  // Auto-deal state
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [autoDealPipelineId, setAutoDealPipelineId] = useState<string>("");
+  const [savingAutoDeal, setSavingAutoDeal] = useState(false);
+
   // Keep the select in sync once the profile (and its account default)
   // resolves, and after a save round-trips through refreshProfile.
   useEffect(() => {
     setSelected(defaultCurrency);
   }, [defaultCurrency]);
 
+  // Load pipelines + current auto_deal_pipeline_id
+  useEffect(() => {
+    if (!accountId) return;
+    (async () => {
+      const [{ data: plist }, { data: acc }] = await Promise.all([
+        supabase.from("pipelines").select("id, name").eq("account_id", accountId).order("created_at"),
+        supabase.from("accounts").select("auto_deal_pipeline_id").eq("id", accountId).single(),
+      ]);
+      setPipelines((plist ?? []) as Pipeline[]);
+      setAutoDealPipelineId(acc?.auto_deal_pipeline_id ?? "");
+    })();
+  }, [accountId, supabase]);
+
   const dirty = selected !== defaultCurrency;
+
+  async function handleSaveAutoDeal() {
+    if (!accountId) return;
+    setSavingAutoDeal(true);
+    const { error } = await supabase
+      .from("accounts")
+      .update({ auto_deal_pipeline_id: autoDealPipelineId || null })
+      .eq("id", accountId);
+    if (error) {
+      toast.error("Falha ao salvar configuração de lead automático");
+    } else {
+      toast.success(autoDealPipelineId ? "Lead automático ativado" : "Lead automático desativado");
+    }
+    setSavingAutoDeal(false);
+  }
 
   async function handleSave() {
     if (!accountId || !dirty) return;
@@ -120,6 +154,63 @@ export function DealsSettings() {
                 </>
               ) : (
                 "Save"
+              )}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+      {/* Auto-deal card */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Zap className="size-4 text-primary" />
+            Lead automático via WhatsApp
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Quando ativado, toda primeira mensagem de um contato novo cria
+            automaticamente um deal na primeira etapa do pipeline selecionado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:max-w-xs">
+            <Label className="text-muted-foreground">Pipeline de destino</Label>
+            <select
+              value={autoDealPipelineId}
+              onChange={(e) => setAutoDealPipelineId(e.target.value)}
+              disabled={!canEditSettings || profileLoading}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">— Desativado —</option>
+              {pipelines.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {!canEditSettings ? (
+              <p className="text-xs text-muted-foreground">
+                Apenas admins podem alterar esta configuração.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {autoDealPipelineId
+                  ? "Cada novo contato entrará automaticamente na primeira etapa deste pipeline."
+                  : "Selecione um pipeline para ativar a criação automática de leads."}
+              </p>
+            )}
+          </div>
+          {canEditSettings && (
+            <Button
+              onClick={handleSaveAutoDeal}
+              disabled={savingAutoDeal}
+            >
+              {savingAutoDeal ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                "Salvar"
               )}
             </Button>
           )}

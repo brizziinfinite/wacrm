@@ -636,6 +636,16 @@ async function processMessage(
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
 
+  // Auto-deal: if this is the contact's first inbound message and the
+  // account has auto_deal_pipeline_id configured, create a deal in the
+  // first stage of that pipeline. Fire-and-forget — never blocks the
+  // webhook 200 OK to Meta.
+  if (isFirstInboundMessage) {
+    maybeCreateAutoDeal(accountId, configOwnerUserId, contactRecord).catch(
+      (err) => console.error('[auto-deal] failed:', err)
+    )
+  }
+
   // ============================================================
   // Flow runner dispatch.
   //
@@ -712,6 +722,74 @@ async function processMessage(
         conversation_id: conversation.id,
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
+  }
+}
+
+/**
+ * If the account has `auto_deal_pipeline_id` set, create a deal for
+ * this contact in the first stage of that pipeline — but only if no
+ * open deal already exists (prevents duplicates on retry / replay).
+ */
+async function maybeCreateAutoDeal(
+  accountId: string,
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  contact: any
+) {
+  // 1. Check account config
+  const { data: account } = await supabaseAdmin()
+    .from('accounts')
+    .select('auto_deal_pipeline_id')
+    .eq('id', accountId)
+    .single()
+
+  if (!account?.auto_deal_pipeline_id) return
+
+  const pipelineId = account.auto_deal_pipeline_id
+
+  // 2. Guard: skip if contact already has an open deal in this pipeline
+  const { count: existingCount } = await supabaseAdmin()
+    .from('deals')
+    .select('id', { count: 'exact', head: true })
+    .eq('account_id', accountId)
+    .eq('contact_id', contact.id)
+    .eq('pipeline_id', pipelineId)
+    .eq('status', 'open')
+
+  if ((existingCount ?? 0) > 0) return
+
+  // 3. Get first stage of the pipeline (lowest position)
+  const { data: firstStage } = await supabaseAdmin()
+    .from('pipeline_stages')
+    .select('id')
+    .eq('pipeline_id', pipelineId)
+    .order('position', { ascending: true })
+    .limit(1)
+    .single()
+
+  if (!firstStage) {
+    console.warn('[auto-deal] pipeline has no stages:', pipelineId)
+    return
+  }
+
+  // 4. Create deal
+  const { error } = await supabaseAdmin()
+    .from('deals')
+    .insert({
+      account_id: accountId,
+      user_id: userId,
+      pipeline_id: pipelineId,
+      stage_id: firstStage.id,
+      contact_id: contact.id,
+      title: contact.name || contact.phone,
+      value: 0,
+      status: 'open',
+    })
+
+  if (error) {
+    console.error('[auto-deal] insert failed:', error.message)
+  } else {
+    console.log('[auto-deal] deal created for contact:', contact.id)
   }
 }
 
