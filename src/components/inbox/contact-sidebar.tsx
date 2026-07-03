@@ -23,6 +23,7 @@ import { useBrands } from "@/lib/content/hooks/useBrands";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DealNotesPanel } from "./deal-notes-panel";
+import { ContactCustomFields } from "./contact-custom-fields";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -235,6 +236,14 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
               )}
             </div>
           </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Custom Fields */}
+          {contact && accountId && (
+            <ContactCustomFields contactId={contact.id} accountId={accountId} />
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
