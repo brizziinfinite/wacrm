@@ -25,6 +25,7 @@ const pageTitles: Record<string, string> = {
   "/pipelines": "Pipelines",
   "/broadcasts": "Broadcasts",
   "/automations": "Automations",
+  "/relatorios": "Relatórios",
   "/settings": "Settings",
 };
 
@@ -53,7 +54,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
     "U";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 lg:px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] bg-background/80 backdrop-blur-md px-4 lg:px-6" style={{ boxShadow: "0 1px 0 rgba(255,255,255,0.04)" }}>
       <div className="flex min-w-0 items-center gap-2">
         {/* Hamburger — mobile only. 44×44 hit target per Apple HIG. */}
         <button
@@ -64,7 +65,12 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
+        <h1 className="truncate text-base font-semibold sm:text-lg" style={{
+          background: "linear-gradient(90deg, #e2e8f0, #8899aa)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}>
           {title}
         </h1>
       </div>
@@ -84,7 +90,9 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                 alt={profile.full_name ?? "Avatar"}
               />
             ) : null}
-            <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+            <AvatarFallback className="text-sm font-bold text-white" style={{
+              background: "linear-gradient(135deg, #06b6d4, #6366f1)",
+            }}>
               {initial}
             </AvatarFallback>
           </Avatar>
