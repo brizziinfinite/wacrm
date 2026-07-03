@@ -16,6 +16,7 @@ import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel'
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ChatbotAutomationsSettings } from '@/components/settings/chatbot-automations-settings';
+import { TypebotIntegrationSettings } from '@/components/settings/typebot-integration-settings';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import {
   resolveSection,
@@ -62,6 +63,7 @@ export default function SettingsPage() {
     deals: <DealsSettings />,
     members: <MembersTab />,
     chatbot: <ChatbotAutomationsSettings />,
+    typebot: <TypebotIntegrationSettings />,
     api: <ApiKeysSettings />,
   };
 

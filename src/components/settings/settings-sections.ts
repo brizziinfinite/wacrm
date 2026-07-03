@@ -10,6 +10,7 @@ import {
   User,
   UsersRound,
   MessageSquare,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'members',
   'chatbot',
+  'typebot',
   'api',
 ] as const;
 
@@ -58,6 +60,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
   chatbot: { id: 'chatbot', label: 'Chatbot automations', icon: MessageSquare, group: 'workspace' },
+  typebot: { id: 'typebot', label: 'Typebot integration', icon: Zap, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
 };
 
