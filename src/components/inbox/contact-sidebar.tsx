@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useBrands } from "@/lib/content/hooks/useBrands";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DealNotesPanel } from "./deal-notes-panel";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -278,6 +279,18 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
               )}
             </div>
           </div>
+
+          {/* Deal Notes (se tem deal aberto) */}
+          {deals.length > 0 && deals[0] && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <DealNotesPanel
+                dealId={deals[0].id}
+                contactId={contact?.id ?? ""}
+                accountId={accountId ?? ""}
+              />
+            </>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
