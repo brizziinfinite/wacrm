@@ -32,6 +32,7 @@ export const SETTINGS_SECTIONS = [
   'fields',
   'deals',
   'members',
+  'ai-chatbot',
   'chatbot',
   'typebot',
   'api',
@@ -59,8 +60,9 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
-  chatbot: { id: 'chatbot', label: 'Chatbot automations', icon: MessageSquare, group: 'workspace' },
-  typebot: { id: 'typebot', label: 'Typebot integration', icon: Zap, group: 'workspace' },
+  'ai-chatbot': { id: 'ai-chatbot', label: 'AI Chatbot (Gemini)', icon: Zap, group: 'workspace' },
+  chatbot: { id: 'chatbot', label: 'Menu Chatbot', icon: MessageSquare, group: 'workspace' },
+  typebot: { id: 'typebot', label: 'Typebot', icon: PlugZap, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
 };
 
