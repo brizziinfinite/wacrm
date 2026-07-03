@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DealNotesPanel } from "./deal-notes-panel";
 import { ContactCustomFields } from "./contact-custom-fields";
+import { ScheduledMessagesPanel } from "./scheduled-messages-panel";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -346,6 +347,18 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
               </div>
             </div>
           </div>
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Scheduled Messages */}
+          {contact && conversationId && accountId && (
+            <ScheduledMessagesPanel
+              contactId={contact.id}
+              conversationId={conversationId}
+              accountId={accountId}
+            />
+          )}
+
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
