@@ -646,6 +646,52 @@ async function processMessage(
     )
   }
 
+  // AI Chatbot: se bot_type='gemini' e bot_status='active', processar via IA
+  const { data: convBotData } = await supabaseAdmin()
+    .from('conversations')
+    .select('bot_type, bot_context')
+    .eq('id', conversation.id)
+    .single()
+
+  if (convBotData?.bot_type === 'gemini' && contentText) {
+    // Fire-and-forget: chamar função de IA sem bloquear webhook
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (supabaseUrl && serviceRoleKey) {
+      fetch(`${supabaseUrl}/functions/v1/process-ai-messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversation_id: conversation.id,
+          account_id: accountId,
+          contact_id: contactRecord.id,
+          message_body: contentText,
+          user_name: contactRecord.name || contactRecord.phone,
+          user_phone: contactRecord.phone,
+        }),
+      }).catch((err) => console.error('[ai-chatbot] request failed:', err))
+    }
+
+    // Inicializar bot_context na primeira mensagem
+    if (!convBotData?.bot_context) {
+      await supabaseAdmin()
+        .from('conversations')
+        .update({
+          bot_context: {
+            messages: [],
+            user_name: contactRecord.name || contactRecord.phone,
+            user_phone: contactRecord.phone,
+          },
+        })
+        .eq('id', conversation.id)
+        .catch((err: unknown) => console.error('[ai-chatbot] context init failed:', err))
+    }
+  }
+
   // ============================================================
   // Flow runner dispatch.
   //
