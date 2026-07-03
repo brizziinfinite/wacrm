@@ -79,15 +79,47 @@ Deno.serve(async (req) => {
         .toLowerCase()
         .includes(config.end_keyword.toLowerCase())
     ) {
+      const endMessage = `Entendi. Vou transferir você para um atendente humano. Aguarde um momento...`;
+
       // Atualizar status para inactive
       await supabase
         .from("conversations")
         .update({ bot_type: "inactive", bot_context: botContext })
         .eq("id", conversation_id);
 
+      // Buscar contato e enviar mensagem de encerramento
+      const { data: contactData } = await supabase
+        .from("contacts")
+        .select("phone")
+        .eq("id", contact_id)
+        .single();
+
+      const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
+      const metaToken = Deno.env.get("META_ACCESS_TOKEN");
+
+      if (contactData?.phone && whatsappPhoneId && metaToken) {
+        fetch(
+          `https://graph.instagram.com/v18.0/${whatsappPhoneId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${metaToken}`,
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              recipient_type: "individual",
+              to: contactData.phone.replace(/\D/g, ""),
+              type: "text",
+              text: { body: endMessage },
+            }),
+          }
+        ).catch((err) => console.error("Failed to send end_keyword message:", err));
+      }
+
       return new Response(
         JSON.stringify({
-          response: `Entendi. Vou transferir você para um atendente. Aguarde um momento...`,
+          response: endMessage,
           end_session: true,
         }),
         { status: 200 }
@@ -141,17 +173,72 @@ Deno.serve(async (req) => {
       })
       .eq("id", conversation_id);
 
-    // 8. Criar mensagem de resposta no banco (para UI)
-    await supabase.from("messages").insert({
-      conversation_id,
-      contact_id,
-      account_id,
-      body: response,
-      direction: "outbound",
-      status: "sent",
-      from_ai: true, // flag para indicar que é bot
-      created_at: new Date().toISOString(),
-    });
+    // 8. Buscar contato (número WhatsApp)
+    const { data: contactData, error: contactError } = await supabase
+      .from("contacts")
+      .select("phone")
+      .eq("id", contact_id)
+      .single();
+
+    if (contactError || !contactData?.phone) {
+      console.error("Contact not found:", contactError);
+      return new Response(
+        JSON.stringify({ error: "Contact phone not found" }),
+        { status: 400 }
+      );
+    }
+
+    // 9. Enviar resposta via WhatsApp (Meta API)
+    const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
+    const metaToken = Deno.env.get("META_ACCESS_TOKEN");
+
+    if (whatsappPhoneId && metaToken) {
+      const sendResponse = await fetch(
+        `https://graph.instagram.com/v18.0/${whatsappPhoneId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${metaToken}`,
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: contactData.phone.replace(/\D/g, ""),
+            type: "text",
+            text: { body: response },
+          }),
+        }
+      );
+
+      const sendData = await sendResponse.json();
+
+      if (!sendResponse.ok) {
+        console.error("Meta API error:", sendData);
+        return new Response(
+          JSON.stringify({
+            error: "Failed to send message via WhatsApp",
+            meta_error: sendData,
+          }),
+          { status: 500 }
+        );
+      }
+
+      const metaMessageId = sendData.messages?.[0]?.id;
+
+      // 10. Criar mensagem de resposta no banco (para UI)
+      await supabase.from("messages").insert({
+        conversation_id,
+        contact_id,
+        account_id,
+        body: response,
+        direction: "outbound",
+        status: "sent",
+        from_ai: true,
+        message_id: metaMessageId, // rastrear resposta da IA
+        created_at: new Date().toISOString(),
+      });
+    }
 
     return new Response(
       JSON.stringify({
