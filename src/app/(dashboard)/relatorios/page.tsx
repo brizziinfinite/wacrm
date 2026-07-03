@@ -26,6 +26,7 @@ import {
 import { formatCurrency } from "@/lib/currency";
 import { useAuth } from "@/hooks/use-auth";
 import { useStageTracking, type StageTrackingStats } from "@/hooks/use-stage-tracking";
+import { useDealRatings } from "@/hooks/use-deal-ratings";
 
 interface StageData {
   stageId: string;
@@ -84,8 +85,9 @@ function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: 
 
 export default function RelatoriosPage() {
   const supabase = createClient();
-  const { defaultCurrency } = useAuth();
+  const { defaultCurrency, accountId } = useAuth();
   const { fetchStageStats } = useStageTracking();
+  const { fetchAvgRatingByPipeline } = useDealRatings();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -97,18 +99,30 @@ export default function RelatoriosPage() {
   const [diagError, setDiagError] = useState("");
   const [funnelVisible, setFunnelVisible] = useState(false);
   const [stageStats, setStageStats] = useState<StageTrackingStats[]>([]);
+  const [avgNps, setAvgNps] = useState(0);
 
   const loadData = useCallback(async (pipelineId: string) => {
-    const [{ data: s }, { data: d }, stats] = await Promise.all([
+    const [{ data: s }, { data: d }, stats, npsMap] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("pipeline_id", pipelineId).order("position"),
       supabase.from("deals").select("*, contact:contacts(*)").eq("pipeline_id", pipelineId),
       fetchStageStats(pipelineId),
+      accountId ? fetchAvgRatingByPipeline(pipelineId, accountId) : Promise.resolve(new Map()),
     ]);
     setStages(s ?? []);
     setDeals((d ?? []) as Deal[]);
     setStageStats(stats);
+
+    // Calcular NPS médio do pipeline
+    if (npsMap.size > 0) {
+      const ratings = Array.from(npsMap.values());
+      const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+      setAvgNps(Math.round(avg * 10) / 10);
+    } else {
+      setAvgNps(0);
+    }
+
     setTimeout(() => setFunnelVisible(true), 100);
-  }, [supabase, fetchStageStats]);
+  }, [supabase, fetchStageStats, fetchAvgRatingByPipeline, accountId]);
 
   useEffect(() => {
     (async () => {
@@ -227,6 +241,14 @@ export default function RelatoriosPage() {
       formatted: formatCurrency(valorTotal, defaultCurrency),
       color: "#f59e0b",
       glow: "rgba(245,158,11,0.2)",
+    },
+    {
+      icon: Award,
+      label: "NPS médio",
+      value: avgNps,
+      suffix: "/5",
+      color: "#ec4899",
+      glow: "rgba(236,72,153,0.2)",
     },
   ];
 
