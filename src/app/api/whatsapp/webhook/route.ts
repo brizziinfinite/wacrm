@@ -241,19 +241,32 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         continue
       }
 
-      if (!configRows || configRows.length === 0) {
-        console.error('No config found for phone_number_id:', phoneNumberId)
+      // API Centralizada: router por customer phone_number → account_id
+      // Busca mapping na tabela whatsapp_phone_mappings
+      if (!value.messages || !value.messages[0]) continue
+
+      const inboundFromNumber = value.messages[0].from // +55 11 9999-9999
+      const { data: phoneMapping, error: mappingError } = await supabaseAdmin()
+        .from('whatsapp_phone_mappings')
+        .select('account_id, whatsapp_client_id')
+        .eq('phone_number', inboundFromNumber)
+        .eq('active', true)
+        .single()
+
+      if (mappingError || !phoneMapping) {
+        console.error('No phone mapping found for:', inboundFromNumber, mappingError)
         continue
       }
 
-      if (configRows.length > 1) {
-        console.error(
-          `Multiple configs (${configRows.length}) found for phone_number_id:`,
-          phoneNumberId,
-          '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
-          'Account owners:',
-          configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
-        )
+      // Buscar config da conta (para access token)
+      const { data: configRows, error: configError } = await supabaseAdmin()
+        .from('whatsapp_configs')
+        .select('*')
+        .eq('account_id', phoneMapping.account_id)
+        .limit(1)
+
+      if (configError || !configRows || configRows.length === 0) {
+        console.error('No WhatsApp config found for account:', phoneMapping.account_id)
         continue
       }
 
@@ -275,7 +288,10 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          // API Centralizada: ID do cliente para routing
+          phoneMapping.whatsapp_client_id,
+          inboundFromNumber
         )
       }
     }
@@ -509,7 +525,11 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  // API Centralizada: ID do cliente para routing (ex: phone_number)
+  whatsappClientId?: string,
+  // Número WhatsApp que iniciou a conversa (auditoria)
+  whatsappFromNumber?: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -528,7 +548,9 @@ async function processMessage(
   const conversation = await findOrCreateConversation(
     accountId,
     configOwnerUserId,
-    contactRecord.id
+    contactRecord.id,
+    whatsappClientId,
+    whatsappFromNumber
   )
   if (!conversation) return
 
@@ -1058,6 +1080,8 @@ async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
   contactId: string,
+  whatsappClientId?: string,
+  whatsappFromNumber?: string,
 ) {
   // Look for existing conversation in this account
   const { data: existing, error: findError } = await supabaseAdmin()
@@ -1079,6 +1103,8 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: configOwnerUserId,
       contact_id: contactId,
+      whatsapp_client_id: whatsappClientId,
+      whatsapp_from_number: whatsappFromNumber,
     })
     .select()
     .single()
