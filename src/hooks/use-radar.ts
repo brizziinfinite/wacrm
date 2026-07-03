@@ -103,7 +103,17 @@ export function useRadar() {
 
   const acceptOpportunity = useCallback(
     async (opportunityId: string): Promise<void> => {
-      const { error } = await supabase
+      // Buscar oportunidade antes de aceitar
+      const { data: opportunity, error: fetchError } = await supabase
+        .from('opportunities')
+        .select('*')
+        .eq('id', opportunityId)
+        .single();
+
+      if (fetchError || !opportunity) throw fetchError || new Error('Opportunity not found');
+
+      // Atualizar status
+      const { error: updateError } = await supabase
         .from('opportunities')
         .update({
           status: 'accepted',
@@ -111,7 +121,26 @@ export function useRadar() {
         })
         .eq('id', opportunityId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Auto-criar ideia baseada na oportunidade
+      const { error: ideaError } = await supabase
+        .from('content_ideas')
+        .insert({
+          brand_id: opportunity.brand_id,
+          topic: opportunity.title,
+          angle: opportunity.suggested_angle || opportunity.title,
+          hook: opportunity.description?.slice(0, 100) || null,
+          detail: opportunity.description || null,
+          format: opportunity.suggested_format || 'post',
+          status: 'pending',
+          rationale: `Gerado pelo Radar de Oportunidades (score: ${(opportunity.relevance_score * 100).toFixed(0)}%)`,
+        });
+
+      if (ideaError) {
+        console.error('Error creating idea from opportunity:', ideaError);
+        // Não falhar — oportunidade já foi aceita
+      }
     },
     [supabase]
   );

@@ -36,7 +36,7 @@ export function RadarWidget({ brandId, accountId }: RadarWidgetProps) {
     try {
       await acceptOpportunity(opportunityId);
       await loadOpportunities();
-      toast.success("Oportunidade aceita! Virará ideia em breve.");
+      toast.success("✓ Oportunidade aceita! Ideia criada automaticamente.");
     } catch (err) {
       console.error("Erro ao aceitar:", err);
       toast.error("Erro ao aceitar oportunidade");
