@@ -22,6 +22,9 @@ import { toast } from "sonner";
 import { useBrands } from "@/lib/content/hooks/useBrands";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DealNotesPanel } from "./deal-notes-panel";
+import { ContactCustomFields } from "./contact-custom-fields";
+import { ScheduledMessagesPanel } from "./scheduled-messages-panel";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -238,6 +241,14 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
+          {/* Custom Fields */}
+          {contact && accountId && (
+            <ContactCustomFields contactId={contact.id} accountId={accountId} />
+          )}
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
           {/* Active Deals */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -278,6 +289,18 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
               )}
             </div>
           </div>
+
+          {/* Deal Notes (se tem deal aberto) */}
+          {deals.length > 0 && deals[0] && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <DealNotesPanel
+                dealId={deals[0].id}
+                contactId={contact?.id ?? ""}
+                accountId={accountId ?? ""}
+              />
+            </>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
@@ -324,6 +347,18 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
               </div>
             </div>
           </div>
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Scheduled Messages */}
+          {contact && conversationId && accountId && (
+            <ScheduledMessagesPanel
+              contactId={contact.id}
+              conversationId={conversationId}
+              accountId={accountId}
+            />
+          )}
+
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 

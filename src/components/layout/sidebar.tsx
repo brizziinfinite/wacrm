@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
+  BarChart2,
   Calendar,
   Crown,
   GitBranch,
@@ -100,6 +101,7 @@ const navItems: NavItem[] = [
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
   { href: "/automations", label: "Automations", icon: Zap },
   { href: "/flows", label: "Flows", icon: Workflow, beta: true },
+  { href: "/relatorios", label: "Relatórios", icon: BarChart2 },
 ];
 
 const contentNavItems: NavItem[] = [
@@ -194,11 +196,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+              style={{
+                background: "linear-gradient(135deg, #06b6d4, #6366f1)",
+                boxShadow: "0 0 12px rgba(6,182,212,0.4), 0 2px 8px rgba(0,0,0,0.3)",
+              }}
+            >
               <MessageSquare className="h-4 w-4" />
             </div>
             <span className="text-sm font-semibold text-foreground">
-              CRM Template for WhatsApp
+              WaCRM
             </span>
           </Link>
           <button
@@ -227,14 +235,23 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium lg:py-2",
+                      "transition-all duration-150",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "text-primary"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
+                    style={isActive ? {
+                      background: "linear-gradient(90deg, rgba(6,182,212,0.12), rgba(99,102,241,0.08))",
+                      boxShadow: "inset 0 0 0 1px rgba(6,182,212,0.15), 0 0 12px rgba(6,182,212,0.08)",
+                    } : undefined}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon
+                      className="h-4 w-4"
+                      style={isActive ? {
+                        filter: "drop-shadow(0 0 6px rgba(6,182,212,0.6))",
+                      } : undefined}
+                    />
                     <span className="flex-1">{item.label}</span>
                     {item.beta && (
                       <span
@@ -278,13 +295,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium lg:py-2",
+                      "transition-all duration-150",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "text-primary"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
+                    style={isActive ? {
+                      background: "linear-gradient(90deg, rgba(6,182,212,0.12), rgba(99,102,241,0.08))",
+                      boxShadow: "inset 0 0 0 1px rgba(6,182,212,0.15), 0 0 12px rgba(6,182,212,0.08)",
+                    } : undefined}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon
+                      className="h-4 w-4"
+                      style={isActive ? { filter: "drop-shadow(0 0 6px rgba(6,182,212,0.6))" } : undefined}
+                    />
                     <span className="flex-1">{item.label}</span>
                   </Link>
                 </li>
@@ -302,13 +327,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium lg:py-2",
+                      "transition-all duration-150",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "text-primary"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
+                    style={isActive ? {
+                      background: "linear-gradient(90deg, rgba(6,182,212,0.12), rgba(99,102,241,0.08))",
+                      boxShadow: "inset 0 0 0 1px rgba(6,182,212,0.15)",
+                    } : undefined}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon
+                      className="h-4 w-4"
+                      style={isActive ? { filter: "drop-shadow(0 0 6px rgba(6,182,212,0.6))" } : undefined}
+                    />
                     {item.label}
                   </Link>
                 </li>

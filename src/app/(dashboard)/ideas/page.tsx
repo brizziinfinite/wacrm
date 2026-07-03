@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAppStore } from "@/store/useAppStore";
+import { useAuth } from "@/hooks/use-auth";
+import { RadarWidget } from "@/components/radar/radar-widget";
 
 type IdeaStatus = "pending" | "approved" | "rejected" | "generated" | "posted" | "archived";
 type IdeaFormat = "carrossel" | "reel" | "story" | "blog" | "email" | "post";
@@ -186,6 +188,7 @@ function EditDialog({ idea, open, onClose, onSave }: { idea: ContentIdea | null;
 
 export default function IdeasPage() {
   const activeBrand = useAppStore((s) => s.activeBrand);
+  const { accountId } = useAuth();
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -300,6 +303,13 @@ export default function IdeasPage() {
           </Button>
         </div>
       </div>
+
+      {/* Radar Widget */}
+      {activeBrand && accountId && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/30 dark:bg-amber-950/20 p-4">
+          <RadarWidget brandId={activeBrand.id} accountId={accountId} />
+        </div>
+      )}
 
       {!loading && ideas.length === 0 && (
         <div className="flex flex-col items-center justify-center h-64 gap-4 text-center border border-dashed border-border rounded-lg">
