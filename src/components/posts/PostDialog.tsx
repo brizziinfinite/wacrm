@@ -173,7 +173,7 @@ export function PostDialog({ open, onOpenChange, post, brandId, onSuccess }: Pos
               ) : (
                 <Select
                   defaultValue={(post as Post & { social_account_id?: string })?.social_account_id ?? ""}
-                  onValueChange={(v) => setValue("social_account_id", v)}
+                  onValueChange={(v) => setValue("social_account_id", v ?? "")}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />

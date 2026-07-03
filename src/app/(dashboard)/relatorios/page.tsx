@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useAuth } from "@/hooks/use-auth";
+import { useStageTracking, type StageTrackingStats } from "@/hooks/use-stage-tracking";
 
 interface StageData {
   stageId: string;
@@ -84,6 +85,7 @@ function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: 
 export default function RelatoriosPage() {
   const supabase = createClient();
   const { defaultCurrency } = useAuth();
+  const { fetchStageStats } = useStageTracking();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -94,16 +96,19 @@ export default function RelatoriosPage() {
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
   const [diagError, setDiagError] = useState("");
   const [funnelVisible, setFunnelVisible] = useState(false);
+  const [stageStats, setStageStats] = useState<StageTrackingStats[]>([]);
 
   const loadData = useCallback(async (pipelineId: string) => {
-    const [{ data: s }, { data: d }] = await Promise.all([
+    const [{ data: s }, { data: d }, stats] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("pipeline_id", pipelineId).order("position"),
       supabase.from("deals").select("*, contact:contacts(*)").eq("pipeline_id", pipelineId),
+      fetchStageStats(pipelineId),
     ]);
     setStages(s ?? []);
     setDeals((d ?? []) as Deal[]);
+    setStageStats(stats);
     setTimeout(() => setFunnelVisible(true), 100);
-  }, [supabase]);
+  }, [supabase, fetchStageStats]);
 
   useEffect(() => {
     (async () => {
@@ -512,6 +517,104 @@ export default function RelatoriosPage() {
               ))}
             </div>
           </div>
+
+          {/* Tempo por Etapa */}
+          {stageStats.length > 0 && (
+            <div style={{
+              background: "rgba(255,255,255,0.025)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 20, padding: "28px 32px",
+              marginBottom: 16,
+              animation: "fadeSlideUp 0.5s ease 0.35s both",
+            }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                marginBottom: 24,
+              }}>
+                <h2 style={{
+                  fontSize: 13, fontWeight: 700, letterSpacing: "0.06em",
+                  textTransform: "uppercase", color: "#556677",
+                }}>
+                  Tempo Médio por Etapa
+                </h2>
+                <AlertTriangle style={{ width: 14, height: 14, color: "#f59e0b" }} />
+              </div>
+
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: 12,
+              }}>
+                {stageStats.map((stat) => (
+                  <div
+                    key={stat.stageId}
+                    style={{
+                      background: stat.isBottleneck
+                        ? "rgba(245,158,11,0.08)"
+                        : "rgba(255,255,255,0.03)",
+                      border: stat.isBottleneck
+                        ? "1.5px solid rgba(245,158,11,0.3)"
+                        : "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: 12,
+                      padding: "16px 20px",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {stat.isBottleneck && (
+                      <div style={{
+                        position: "absolute", top: 0, right: 0,
+                        background: "#f59e0b", color: "#1a1a1a",
+                        fontSize: 9, fontWeight: 700, padding: "4px 8px",
+                        borderBottomLeftRadius: 8,
+                      }}>
+                        GARGALO
+                      </div>
+                    )}
+
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      marginBottom: 12,
+                    }}>
+                      <span style={{
+                        fontSize: 12, fontWeight: 600,
+                        color: stat.isBottleneck ? "#f59e0b" : "#c4d4e0",
+                      }}>
+                        {stat.stageName}
+                      </span>
+                      <span style={{
+                        fontSize: 10, color: "#7a8da2",
+                      }}>
+                        n={stat.totalTransitions}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      fontSize: 24, fontWeight: 700, color: stat.isBottleneck ? "#f59e0b" : "#e2e8f0",
+                      marginBottom: 8,
+                    }}>
+                      {stat.avgDurationHours}h
+                    </div>
+
+                    <div style={{
+                      display: "flex", gap: 12, fontSize: 11, color: "#7a8da2",
+                    }}>
+                      <span>{stat.avgDurationMinutes}m</span>
+                      <span>•</span>
+                      <span>{stat.avgDurationSeconds}s</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                marginTop: 16, padding: 12, background: "rgba(245,158,11,0.05)",
+                border: "1px solid rgba(245,158,11,0.2)", borderRadius: 8,
+                fontSize: 12, color: "#c4d4e0",
+              }}>
+                <strong>💡 Dica:</strong> A etapa em <strong>GARGALO</strong> é onde mais tempo é gasto. Considere otimizar esse processo.
+              </div>
+            </div>
+          )}
 
           {/* Diagnóstico IA */}
           <div style={{
