@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { UserPlus, Briefcase, Radio, Zap } from 'lucide-react'
 import type { ComponentType } from 'react'
+import { GlowCard } from '@/components/ui/glow-card'
 
 // Quick-action shortcuts. Each navigates to the page that owns the
 // relevant "create" flow. We deliberately don't try to auto-open any
@@ -28,16 +29,20 @@ export function QuickActions() {
       {ACTIONS.map((a) => {
         const Icon = a.icon
         return (
-          <Link
+          <GlowCard
             key={a.href}
-            href={a.href}
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-border hover:bg-muted/60"
+            className="rounded-xl border border-white/[0.07] bg-card"
           >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
-              <Icon className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium text-foreground">{a.label}</span>
-          </Link>
+            <Link
+              href={a.href}
+              className="flex items-center gap-3 px-4 py-3"
+            >
+              <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] ${a.tint}`}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <span className="text-sm font-medium text-foreground">{a.label}</span>
+            </Link>
+          </GlowCard>
         )
       })}
     </div>
