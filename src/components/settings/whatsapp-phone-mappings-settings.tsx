@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Trash2, Plus, Toggle2 } from 'lucide-react'
+import { AlertTriangle, Trash2, Plus, ToggleLeft } from 'lucide-react'
 
 export function WhatsappPhoneMappingsSettings() {
-  const { user } = useAuth()
+  const { accountId } = useAuth()
   const { mappings, loading, error, fetchMappings, addMapping, toggleMapping, deleteMapping } =
     useWhatsappMappings()
 
@@ -20,18 +20,18 @@ export function WhatsappPhoneMappingsSettings() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (user?.account_id) {
-      fetchMappings(user.account_id)
+    if (accountId) {
+      fetchMappings(accountId)
     }
-  }, [user?.account_id])
+  }, [accountId])
 
   const handleAddMapping = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.account_id || !phoneNumber || !whatsappClientId) return
+    if (!accountId || !phoneNumber || !whatsappClientId) return
 
     setSubmitting(true)
     try {
-      await addMapping(user.account_id, phoneNumber, whatsappClientId)
+      await addMapping(accountId, phoneNumber, whatsappClientId)
       setPhoneNumber('')
       setWhatsappClientId('')
     } finally {
@@ -137,7 +137,7 @@ export function WhatsappPhoneMappingsSettings() {
                       variant="ghost"
                       onClick={() => handleToggleMapping(mapping.id, mapping.active)}
                     >
-                      <Toggle2 className="h-4 w-4" />
+                      <ToggleLeft className="h-4 w-4" />
                     </Button>
                     <Button
                       type="button"

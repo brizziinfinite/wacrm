@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 
 export interface WhatsappPhoneMapping {
   id: string
@@ -12,6 +12,7 @@ export interface WhatsappPhoneMapping {
 }
 
 export function useWhatsappMappings() {
+  const supabase = createClient()
   const [mappings, setMappings] = useState<WhatsappPhoneMapping[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
