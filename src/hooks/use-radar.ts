@@ -25,7 +25,7 @@ export interface Opportunity {
   suggested_angle?: string;
   suggested_format?: string;
   urgency: string;
-  source_content?: Record<string, any>;
+  source_content?: Record<string, unknown>;
   status: string;
   accepted_at?: string;
   rejected_at?: string;
@@ -201,6 +201,30 @@ export function useRadar() {
     [supabase]
   );
 
+  const toggleSource = useCallback(
+    async (sourceId: string, active: boolean): Promise<void> => {
+      const { error } = await supabase
+        .from('opportunity_sources')
+        .update({ active, updated_at: new Date().toISOString() })
+        .eq('id', sourceId);
+
+      if (error) throw error;
+    },
+    [supabase]
+  );
+
+  const deleteSource = useCallback(
+    async (sourceId: string): Promise<void> => {
+      const { error } = await supabase
+        .from('opportunity_sources')
+        .delete()
+        .eq('id', sourceId);
+
+      if (error) throw error;
+    },
+    [supabase]
+  );
+
   return {
     fetchOpportunitiesByBrand,
     fetchTodayOpportunities,
@@ -208,6 +232,8 @@ export function useRadar() {
     rejectOpportunity,
     fetchSources,
     addSource,
+    toggleSource,
+    deleteSource,
     loading,
   };
 }

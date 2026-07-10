@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRadar, type Opportunity } from "@/hooks/use-radar";
+import { RadarSourcesDialog } from "@/components/radar/radar-sources-dialog";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Check, X, Loader2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
@@ -71,11 +72,12 @@ export function RadarWidget({ brandId, accountId }: RadarWidgetProps) {
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-4">
         <Sparkles className="h-5 w-5 text-amber-500" />
-        <h3 className="font-semibold">
+        <h3 className="font-semibold flex-1">
           {opportunities.length > 0
             ? `${opportunities.length} oportunidade${opportunities.length !== 1 ? "s" : ""} hoje`
             : "Nenhuma oportunidade por enquanto"}
         </h3>
+        <RadarSourcesDialog brandId={brandId} accountId={accountId} />
       </div>
 
       {opportunities.length === 0 ? (
@@ -176,7 +178,7 @@ export function RadarWidget({ brandId, accountId }: RadarWidgetProps) {
       )}
 
       <div className="text-xs text-muted-foreground bg-blue-500/5 border border-blue-500/20 rounded px-3 py-2">
-        💡 O Radar verifica notícias, trends e concorrentes todo dia às 08:00 UTC. Clique "Usar" para virar ideia.
+        💡 O Radar verifica notícias, trends e concorrentes todo dia às 08:00 UTC. Clique &quot;Usar&quot; para virar ideia.
       </div>
     </div>
   );

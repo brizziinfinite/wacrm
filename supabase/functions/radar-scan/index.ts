@@ -1,6 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.3.1";
-import { parseFeed } from "https://esm.sh/htmlparser2-rss@1.1.0";
+import { parseFeed } from "https://esm.sh/htmlparser2@9.1.0";
 
 interface RadarSource {
   id: string;
@@ -23,11 +22,11 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
 );
 
-const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY") || "");
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 
 async function fetchRSSFeed(url: string): Promise<RSSItem[]> {
   try {
-    const response = await fetch(url, { timeout: 10000 });
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) return [];
 
     const xml = await response.text();
@@ -59,7 +58,6 @@ async function analyzeOpportunity(
   urgency: string;
 }> {
   try {
-    const aiModel = genAI.getGenerativeModel({ model });
     const prompt = `
 Analise esta notícia/oportunidade para a brand "${brandName}".
 
@@ -76,15 +74,29 @@ Exemplo:
 {"relevance_score": 0.8, "suggested_angle": "...", "suggested_format": "reel", "urgency": "high"}
 `;
 
-    const result = await aiModel.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature,
-        maxOutputTokens: 256,
-      },
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: 1024,
+          },
+        }),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
 
-    const text = result.response.text();
+    if (!response.ok) {
+      throw new Error(`Gemini API ${response.status}: ${await response.text()}`);
+    }
+
+    const result = await response.json();
+    const text: string =
+      result?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const jsonMatch = text.match(/\{.*\}/s);
     if (!jsonMatch) throw new Error("No JSON found");
 
@@ -147,13 +159,15 @@ async function scanBrandSources(
     for (const item of items) {
       if (!item.title || !item.description) continue;
 
-      // Verificar duplicatas (title similar)
-      const { data: existing } = await supabase
+      // Verificar duplicatas (mesma URL ou mesmo título exato)
+      let dupQuery = supabase
         .from("opportunities")
         .select("id")
-        .eq("brand_id", brandId)
-        .textSearch("title", item.title)
-        .limit(1);
+        .eq("brand_id", brandId);
+      dupQuery = item.link
+        ? dupQuery.eq("url", item.link)
+        : dupQuery.eq("title", item.title);
+      const { data: existing } = await dupQuery.limit(1);
 
       if (existing && existing.length > 0) {
         console.log(`Skipping duplicate: ${item.title.slice(0, 50)}`);
@@ -216,17 +230,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { account_id } = await req.json();
+    const { account_id } = await req.json().catch(() => ({}));
 
     // Se não fornecido, rodar para TODAS as contas
-    const accountIds = account_id
-      ? [account_id]
-      : (await supabase
-          .from("radar_configs")
-          .select("account_id")
-          .eq("enabled", true)
-          .then((r) => r.data?.map((c: any) => c.account_id) || []))
-          .catch(() => []);
+    let accountIds: string[];
+    if (account_id) {
+      accountIds = [account_id];
+    } else {
+      const { data: configs } = await supabase
+        .from("radar_configs")
+        .select("account_id")
+        .eq("enabled", true);
+      accountIds = configs?.map((c: { account_id: string }) => c.account_id) ?? [];
+    }
 
     console.log(`Starting radar scan for ${accountIds.length} accounts...`);
 
