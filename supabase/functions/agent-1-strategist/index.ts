@@ -164,7 +164,7 @@ async function callGemini(
   apiKey: string
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -411,7 +411,7 @@ Deno.serve(async (req: Request) => {
         user_id:    plan.user_id,
         status:     "running",
         llm_provider: llmProvider,
-        llm_model:  llmProvider === "gemini" ? "gemini-2.5-flash" : "claude-haiku-4-5-20251001",
+        llm_model:  llmProvider === "gemini" ? "gemini-flash-latest" : "claude-haiku-4-5-20251001",
         input_payload: {
           brand_id:     brand.id,
           plan_id:      plan.id,
@@ -473,7 +473,7 @@ Deno.serve(async (req: Request) => {
         rawText   = r.text;
         inputTok  = r.inputTokens;
         outputTok = r.outputTokens;
-        llmModel  = "gemini-2.5-flash";
+        llmModel  = "gemini-flash-latest";
         costUsd   = inputTok * GEMINI_PRICING.input + outputTok * GEMINI_PRICING.output;
       }
 

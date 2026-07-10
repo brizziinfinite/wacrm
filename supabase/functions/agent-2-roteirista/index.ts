@@ -82,7 +82,7 @@ function extractJson(raw: string): string {
 // ─── LLM calls ───────────────────────────────────────────────────────────────
 
 async function callGemini(prompt: string, apiKey: string) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -476,7 +476,7 @@ Deno.serve(async (req: Request) => {
       format:      i.format,
       status:      "generating",
       llm_provider: llmProvider,
-      llm_model:   llmProvider === "gemini" ? "gemini-2.5-flash" : "claude-haiku-4-5-20251001",
+      llm_model:   llmProvider === "gemini" ? "gemini-flash-latest" : "claude-haiku-4-5-20251001",
     })
     .select("id")
     .single();
@@ -493,7 +493,7 @@ Deno.serve(async (req: Request) => {
       user_id:      i.user_id,
       status:       "running",
       llm_provider: llmProvider,
-      llm_model:    llmProvider === "gemini" ? "gemini-2.5-flash" : "claude-haiku-4-5-20251001",
+      llm_model:    llmProvider === "gemini" ? "gemini-flash-latest" : "claude-haiku-4-5-20251001",
       input_payload: { idea_id: ideaId, format: i.format, package_id: packageId },
     })
     .select("id")
@@ -545,7 +545,7 @@ Deno.serve(async (req: Request) => {
       }
       const r = retryResult.data;
       rawText = r.text; inputTok = r.inputTokens; outputTok = r.outputTokens;
-      llmModel = "gemini-2.5-flash";
+      llmModel = "gemini-flash-latest";
       costUsd = inputTok * GEMINI_PRICING.input + outputTok * GEMINI_PRICING.output;
     }
 

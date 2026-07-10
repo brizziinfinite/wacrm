@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
           brand.id,
           brand.name,
           config.min_relevance_score,
-          "gemini-2.5-flash",
+          "gemini-flash-latest",
           0.7
         );
       }
