@@ -375,7 +375,8 @@ export type AutomationTriggerType =
   | 'new_contact_created'
   | 'conversation_assigned'
   | 'tag_added'
-  | 'time_based';
+  | 'time_based'
+  | 'lead_qualified';
 
 export type AutomationStepType =
   | 'send_message'
@@ -541,4 +542,39 @@ export interface AutomationLog {
   error_message?: string | null;
   created_at: string;
   contact?: Contact;
+}
+
+// ============================================================
+// AI Lead Qualifier (migration 0NN)
+// ============================================================
+
+export interface AiQualifierQuestion {
+  field: string;
+  question: string;
+}
+
+export type AiQualifierScore = 'hot' | 'warm' | 'cold';
+
+export interface AiQualifierConfig {
+  id: string;
+  account_id: string;
+  enabled: boolean;
+  questions: AiQualifierQuestion[];
+  qualify_prompt: string;
+  hot_pipeline_id: string | null;
+  hot_stage_id: string | null;
+  hot_tag_id: string | null;
+  warm_tag_id: string | null;
+  cold_tag_id: string | null;
+  model: string;
+  temperature: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Shape written into conversations.bot_context while bot_type='qualifier'. */
+export interface QualifierBotContext {
+  answers: Record<string, string>;
+  questions_asked: number;
+  score?: AiQualifierScore;
 }
