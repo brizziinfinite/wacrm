@@ -19,6 +19,12 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY") || "");
 
+// Single-tenant/global-config assumption: unlike engineSendText (in
+// src/lib/automations/meta-send.ts), which resolves a per-account, encrypted
+// whatsapp_config row, this reads one global WHATSAPP_PHONE_ID/META_ACCESS_TOKEN
+// env var pair. engineSendText is Node-only and unreachable from this Deno edge
+// function. Multi-tenant WhatsApp number support would need this function to
+// look up whatsapp_config by account_id similarly.
 async function sendWhatsAppText(phone: string, text: string): Promise<string | undefined> {
   const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
   const metaToken = Deno.env.get("META_ACCESS_TOKEN");
@@ -94,10 +100,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "No questions configured" }), { status: 400 });
     }
 
+    // Defense in depth: this function uses the service-role client (bypassing
+    // RLS), so scope the lookup by account_id, not just id.
     const { data: conv, error: convError } = await supabase
       .from("conversations")
       .select("bot_context")
       .eq("id", conversation_id)
+      .eq("account_id", account_id)
       .single();
 
     if (convError) {
@@ -108,10 +117,13 @@ Deno.serve(async (req) => {
       ? conv.bot_context
       : { answers: {}, questions_asked: 0 };
 
+    // Defense in depth: this function uses the service-role client (bypassing
+    // RLS), so scope the lookup by account_id, not just id.
     const { data: contact } = await supabase
       .from("contacts")
       .select("phone")
       .eq("id", contact_id)
+      .eq("account_id", account_id)
       .single();
 
     if (!contact?.phone) {
