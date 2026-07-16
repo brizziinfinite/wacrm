@@ -714,6 +714,29 @@ async function processMessage(
     }
   }
 
+  // AI Lead Qualifier: se bot_type='qualifier', processar via IA
+  if (convBotData?.bot_type === 'qualifier' && contentText) {
+    // Fire-and-forget: chamar função de IA sem bloquear webhook
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (supabaseUrl && serviceRoleKey) {
+      fetch(`${supabaseUrl}/functions/v1/qualify-lead`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversation_id: conversation.id,
+          account_id: accountId,
+          contact_id: contactRecord.id,
+          message_text: contentText,
+        }),
+      }).catch((err) => console.error('[qualify-lead] request failed:', err))
+    }
+  }
+
   // ============================================================
   // Flow runner dispatch.
   //
