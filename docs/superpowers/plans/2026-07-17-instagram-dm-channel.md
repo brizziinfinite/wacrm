@@ -83,6 +83,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_channel_external_id
 CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel);
 CREATE INDEX IF NOT EXISTS idx_contacts_channel ON contacts(channel);
 
+-- Migration 022's unique index is (account_id, phone_normalized) — no
+-- channel in the key. phone_normalized is `regexp_replace(phone, '\D',
+-- '', 'g')`; our Instagram placeholder `instagram:<igsid>` strips down
+-- to just the IGSID's digits. Two Instagram contacts in the same
+-- account would collide on that index today (both non-empty,
+-- both digits-only), and in the pathological case an IGSID's digits
+-- could coincidentally match an existing WhatsApp phone's digits.
+-- Widen the key to (account_id, channel, phone_normalized) so each
+-- channel dedupes independently — WhatsApp's behavior is byte-for-byte
+-- unchanged since every existing row has channel='whatsapp'.
+DROP INDEX IF EXISTS idx_contacts_account_phone_normalized;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_account_channel_phone_normalized
+  ON contacts (account_id, channel, phone_normalized)
+  WHERE phone_normalized <> '';
+
 -- Instagram equivalent of whatsapp_config: one row per connected
 -- Instagram professional account, scoped to an account_id (tenant).
 CREATE TABLE IF NOT EXISTS instagram_config (
