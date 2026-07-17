@@ -46,7 +46,7 @@
 
 ---
 
-### Task 1: Schema — multi-channel contacts/conversations + instagram_config
+### Task 1: Schema — ✅ DONE (migration applied to Publik remote, xnwcalrlvjwszmtgkwfs) — multi-channel contacts/conversations + instagram_config
 
 **Files:**
 - Create: `supabase/migrations/043_instagram_channel.sql`
@@ -55,7 +55,7 @@
 **Interfaces:**
 - Produces: `contacts.channel TEXT NOT NULL DEFAULT 'whatsapp'`, `contacts.external_id TEXT` (nullable — holds Instagram-scoped user ID, IGSID), `conversations.channel TEXT NOT NULL DEFAULT 'whatsapp'`, table `instagram_config` (mirrors `whatsapp_config` shape).
 
-- [ ] **Step 1: Write the migration file**
+- [x] **Step 1: Write the migration file**
 
 ```sql
 -- Migration 043: instagram_channel — multi-channel contacts/conversations + Instagram config
@@ -137,13 +137,13 @@ COMMENT ON TABLE instagram_config IS
   'Connected Instagram professional account credentials, one row per account_id. Mirrors whatsapp_config.';
 ```
 
-- [ ] **Step 2: Apply locally and verify**
+- [x] **Step 2: Apply locally and verify**
 
 Run: `npx supabase db reset` (or `npx supabase migration up` if already running a local stack — check `supabase/config.toml` for the project ref first).
 
 Expected: migration applies with no errors; `\d contacts` in `psql` shows the new `channel` and `external_id` columns; `\d instagram_config` shows the new table with RLS enabled (`\d+ instagram_config` shows `Row security: enabled`).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add supabase/migrations/043_instagram_channel.sql
@@ -152,7 +152,7 @@ git commit -m "feat(db): add multi-channel columns and instagram_config table"
 
 ---
 
-### Task 2: `channel-dedupe.ts` — channel-aware contact lookup
+### Task 2: ✅ DONE — `channel-dedupe.ts` — channel-aware contact lookup
 
 **Files:**
 - Create: `src/lib/contacts/channel-dedupe.ts`
@@ -163,7 +163,7 @@ git commit -m "feat(db): add multi-channel columns and instagram_config table"
 - Consumes: `SupabaseClient` (from `@supabase/supabase-js`), same as `findExistingContact` in `dedupe.ts`.
 - Produces: `findExistingContactByExternalId(db, accountId, channel, externalId): Promise<ExistingContact | null>` — used by Task 4's Instagram webhook and by Task 5's WhatsApp-wrapper refactor is NOT needed here (WhatsApp keeps calling the original `findExistingContact` directly; this new function is Instagram-only, added alongside, not replacing).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/lib/contacts/channel-dedupe.test.ts
@@ -202,12 +202,12 @@ describe("findExistingContactByExternalId", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/contacts/channel-dedupe.test.ts`
 Expected: FAIL — `Cannot find module './channel-dedupe'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```typescript
 // src/lib/contacts/channel-dedupe.ts
@@ -247,12 +247,12 @@ export async function findExistingContactByExternalId(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/contacts/channel-dedupe.test.ts`
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/contacts/channel-dedupe.ts src/lib/contacts/channel-dedupe.test.ts
@@ -261,7 +261,7 @@ git commit -m "feat(contacts): add channel-aware contact lookup for instagram"
 
 ---
 
-### Task 3: `src/lib/instagram/graph-api.ts` — outbound send + profile fetch
+### Task 3: ✅ DONE — `src/lib/instagram/graph-api.ts` — outbound send + profile fetch
 
 **Files:**
 - Create: `src/lib/instagram/graph-api.ts`
@@ -272,7 +272,7 @@ git commit -m "feat(contacts): add channel-aware contact lookup for instagram"
 - Produces: `sendInstagramMessage(args: SendInstagramMessageArgs): Promise<{ messageId: string }>`, `getInstagramUserProfile(args: { igsid: string; accessToken: string }): Promise<{ name?: string; username?: string; profile_pic?: string }>`.
 - Consumes: nothing internal — pure `fetch` wrapper, same shape as `meta-api.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/lib/instagram/graph-api.test.ts
@@ -321,12 +321,12 @@ describe("sendInstagramMessage", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/instagram/graph-api.test.ts`
 Expected: FAIL — `Cannot find module './graph-api'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```typescript
 // src/lib/instagram/graph-api.ts
@@ -421,12 +421,12 @@ export async function getInstagramUserProfile(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/instagram/graph-api.test.ts`
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/instagram/graph-api.ts src/lib/instagram/graph-api.test.ts
