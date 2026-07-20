@@ -1,4 +1,5 @@
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { sendInstagramMessage } from '@/lib/instagram/graph-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -70,14 +71,64 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // new tenancy column.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel, external_id')
     .eq('id', input.contactId)
     .eq('account_id', input.accountId)
     .maybeSingle()
-  if (contactErr || !contact?.phone) {
+  if (contactErr || !contact) {
     throw new Error('contact not found for this account')
   }
 
+  if (contact.channel === 'instagram') {
+    if (input.kind === 'template') {
+      throw new Error('Instagram has no template message system — send text only')
+    }
+    if (!contact.external_id) {
+      throw new Error('instagram contact missing external_id (IGSID)')
+    }
+
+    const { data: igConfig, error: igConfigErr } = await db
+      .from('instagram_config')
+      .select('access_token')
+      .eq('account_id', input.accountId)
+      .single()
+    if (igConfigErr || !igConfig) {
+      throw new Error('Instagram not configured for this account')
+    }
+
+    const { messageId } = await sendInstagramMessage({
+      igsid: contact.external_id,
+      text: input.text,
+      pageAccessToken: decrypt(igConfig.access_token),
+    })
+
+    const { error: igMsgErr } = await db.from('messages').insert({
+      conversation_id: input.conversationId,
+      sender_type: 'bot',
+      content_type: 'text',
+      content_text: input.text,
+      message_id: messageId,
+      status: 'sent',
+    })
+    if (igMsgErr) {
+      throw new Error(`sent to Meta but DB insert failed: ${igMsgErr.message}`)
+    }
+
+    await db
+      .from('conversations')
+      .update({
+        last_message_text: input.text,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.conversationId)
+
+    return { whatsapp_message_id: messageId }
+  }
+
+  if (!contact.phone) {
+    throw new Error('contact not found for this account')
+  }
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
