@@ -228,6 +228,17 @@ export interface WhatsAppConfig {
   last_registration_error?: string;
 }
 
+export interface InstagramConfig {
+  id: string;
+  user_id: string;
+  instagram_business_account_id: string;
+  page_id: string;
+  access_token: string;
+  verify_token: string;
+  username?: string;
+  is_active: boolean;
+}
+
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
 // rather than collapsing to a local TitleCase set — distinctions like
 // PAUSED vs DISABLED vs IN_APPEAL drive the edit/resubmit/delete flows.
