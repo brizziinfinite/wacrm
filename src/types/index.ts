@@ -143,12 +143,14 @@ export interface ContactNote {
 }
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
+export type Channel = 'whatsapp' | 'instagram';
 
 export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
   status: ConversationStatus;
+  channel?: Channel;
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;
