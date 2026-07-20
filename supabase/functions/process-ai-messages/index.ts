@@ -15,6 +15,139 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY") || "");
 
+interface ChatbotContact {
+  phone: string | null;
+  channel: string | null;
+  external_id: string | null;
+}
+
+// Same global-config WhatsApp / per-account Instagram split as
+// qualify-lead's sendText — see that function's comment for why.
+async function sendWhatsAppText(phone: string, text: string): Promise<string | undefined> {
+  const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
+  const metaToken = Deno.env.get("META_ACCESS_TOKEN");
+  if (!whatsappPhoneId || !metaToken) return undefined;
+
+  const res = await fetch(
+    `https://graph.facebook.com/v18.0/${whatsappPhoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${metaToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: phone.replace(/\D/g, ""),
+        type: "text",
+        text: { body: text },
+      }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("Meta API error:", data);
+    return undefined;
+  }
+  return data.messages?.[0]?.id;
+}
+
+async function sendInstagramText(
+  accountId: string,
+  igsid: string,
+  text: string
+): Promise<string | undefined> {
+  const { data: config } = await supabase
+    .from("instagram_config")
+    .select("access_token")
+    .eq("account_id", accountId)
+    .single();
+  if (!config?.access_token) return undefined;
+
+  const accessToken = await decryptToken(config.access_token);
+  if (!accessToken) return undefined;
+
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/me/messages?access_token=${accessToken}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: { id: igsid },
+        message: { text },
+        messaging_type: "RESPONSE",
+      }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("Instagram API error:", data);
+    return undefined;
+  }
+  return data.message_id;
+}
+
+// AES-256-GCM decrypt matching src/lib/whatsapp/encryption.ts's format
+// (hex "iv:ciphertext:authTag"). See qualify-lead/index.ts's identical
+// function for the full rationale — duplicated because Deno edge
+// functions can't share a module outside their own directory here.
+async function decryptToken(encrypted: string): Promise<string | undefined> {
+  const keyHex = Deno.env.get("ENCRYPTION_KEY");
+  if (!keyHex) {
+    console.error("ENCRYPTION_KEY not set — cannot decrypt instagram_config.access_token");
+    return undefined;
+  }
+  try {
+    const [ivHex, ciphertextHex, authTagHex] = encrypted.split(":");
+    const keyBytes = hexToBytes(keyHex);
+    const iv = hexToBytes(ivHex);
+    const authTag = hexToBytes(authTagHex);
+    const ciphertext = hexToBytes(ciphertextHex);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-GCM" },
+      false,
+      ["decrypt"]
+    );
+    const combined = new Uint8Array(ciphertext.length + authTag.length);
+    combined.set(ciphertext);
+    combined.set(authTag, ciphertext.length);
+
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      cryptoKey,
+      combined
+    );
+    return new TextDecoder().decode(plaintext);
+  } catch (err) {
+    console.error("Failed to decrypt instagram_config.access_token:", err);
+    return undefined;
+  }
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+async function sendText(
+  accountId: string,
+  contact: ChatbotContact,
+  text: string
+): Promise<string | undefined> {
+  if (contact.channel === "instagram" && contact.external_id) {
+    return sendInstagramText(accountId, contact.external_id, text);
+  }
+  if (!contact.phone) return undefined;
+  return sendWhatsAppText(contact.phone, text);
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -90,31 +223,14 @@ Deno.serve(async (req) => {
       // Buscar contato e enviar mensagem de encerramento
       const { data: contactData } = await supabase
         .from("contacts")
-        .select("phone")
+        .select("phone, channel, external_id")
         .eq("id", contact_id)
         .single();
 
-      const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
-      const metaToken = Deno.env.get("META_ACCESS_TOKEN");
-
-      if (contactData?.phone && whatsappPhoneId && metaToken) {
-        fetch(
-          `https://graph.instagram.com/v18.0/${whatsappPhoneId}/messages`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${metaToken}`,
-            },
-            body: JSON.stringify({
-              messaging_product: "whatsapp",
-              recipient_type: "individual",
-              to: contactData.phone.replace(/\D/g, ""),
-              type: "text",
-              text: { body: endMessage },
-            }),
-          }
-        ).catch((err) => console.error("Failed to send end_keyword message:", err));
+      if (contactData) {
+        sendText(account_id, contactData, endMessage).catch((err) =>
+          console.error("Failed to send end_keyword message:", err)
+        );
       }
 
       return new Response(
@@ -173,14 +289,14 @@ Deno.serve(async (req) => {
       })
       .eq("id", conversation_id);
 
-    // 8. Buscar contato (número WhatsApp)
+    // 8. Buscar contato
     const { data: contactData, error: contactError } = await supabase
       .from("contacts")
-      .select("phone")
+      .select("phone, channel, external_id")
       .eq("id", contact_id)
       .single();
 
-    if (contactError || !contactData?.phone) {
+    if (contactError || !contactData || (contactData.channel !== "instagram" && !contactData.phone)) {
       console.error("Contact not found:", contactError);
       return new Response(
         JSON.stringify({ error: "Contact phone not found" }),
@@ -188,57 +304,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 9. Enviar resposta via WhatsApp (Meta API)
-    const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
-    const metaToken = Deno.env.get("META_ACCESS_TOKEN");
+    // 9. Enviar resposta (WhatsApp ou Instagram, conforme contactData.channel)
+    const metaMessageId = await sendText(account_id, contactData, response);
 
-    if (whatsappPhoneId && metaToken) {
-      const sendResponse = await fetch(
-        `https://graph.instagram.com/v18.0/${whatsappPhoneId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${metaToken}`,
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: contactData.phone.replace(/\D/g, ""),
-            type: "text",
-            text: { body: response },
-          }),
-        }
-      );
-
-      const sendData = await sendResponse.json();
-
-      if (!sendResponse.ok) {
-        console.error("Meta API error:", sendData);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to send message via WhatsApp",
-            meta_error: sendData,
-          }),
-          { status: 500 }
-        );
-      }
-
-      const metaMessageId = sendData.messages?.[0]?.id;
-
-      // 10. Criar mensagem de resposta no banco (para UI)
-      await supabase.from("messages").insert({
-        conversation_id,
-        contact_id,
-        account_id,
-        body: response,
-        direction: "outbound",
-        status: "sent",
-        from_ai: true,
-        message_id: metaMessageId, // rastrear resposta da IA
-        created_at: new Date().toISOString(),
-      });
-    }
+    // 10. Criar mensagem de resposta no banco (para UI). Columns match
+    // messages table schema (001_initial_schema.sql + 010 widening) —
+    // sender_type/content_text/content_type/message_id, not the
+    // body/direction/from_ai columns this insert used before (those
+    // don't exist on the table; the insert was silently failing).
+    await supabase.from("messages").insert({
+      conversation_id,
+      sender_type: "bot",
+      content_type: "text",
+      content_text: response,
+      message_id: metaMessageId ?? null,
+      status: "sent",
+    });
 
     return new Response(
       JSON.stringify({

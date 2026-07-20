@@ -55,6 +55,116 @@ async function sendWhatsAppText(phone: string, text: string): Promise<string | u
   return data.messages?.[0]?.id;
 }
 
+// Instagram equivalent of sendWhatsAppText. Per-account instagram_config
+// (unlike the global WhatsApp env vars) since instagram_config was designed
+// account-scoped from the start (migration 043) — no legacy global fallback
+// to preserve here.
+async function sendInstagramText(
+  accountId: string,
+  igsid: string,
+  text: string
+): Promise<string | undefined> {
+  const { data: config } = await supabase
+    .from("instagram_config")
+    .select("access_token")
+    .eq("account_id", accountId)
+    .single();
+  if (!config?.access_token) return undefined;
+
+  const accessToken = await decryptToken(config.access_token);
+  if (!accessToken) return undefined;
+
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/me/messages?access_token=${accessToken}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: { id: igsid },
+        message: { text },
+        messaging_type: "RESPONSE",
+      }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("Instagram API error:", data);
+    return undefined;
+  }
+  return data.message_id;
+}
+
+// AES-256-GCM decrypt matching src/lib/whatsapp/encryption.ts's format
+// (hex "iv:ciphertext:authTag", 12-byte IV, 16-byte auth tag — GCM branch
+// only, legacy 2-part CBC format not supported here since instagram_config
+// is new and every row is written by the current encrypt()). Reimplemented
+// here because Deno edge functions can't import from src/lib (Node-only
+// crypto import style) — same constraint noted above for the WhatsApp side.
+async function decryptToken(encrypted: string): Promise<string | undefined> {
+  const keyHex = Deno.env.get("ENCRYPTION_KEY");
+  if (!keyHex) {
+    console.error("ENCRYPTION_KEY not set — cannot decrypt instagram_config.access_token");
+    return undefined;
+  }
+  try {
+    const [ivHex, ciphertextHex, authTagHex] = encrypted.split(":");
+    const keyBytes = hexToBytes(keyHex);
+    const iv = hexToBytes(ivHex);
+    const authTag = hexToBytes(authTagHex);
+    const ciphertext = hexToBytes(ciphertextHex);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-GCM" },
+      false,
+      ["decrypt"]
+    );
+    // Web Crypto expects ciphertext+authTag concatenated for AES-GCM.
+    const combined = new Uint8Array(ciphertext.length + authTag.length);
+    combined.set(ciphertext);
+    combined.set(authTag, ciphertext.length);
+
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      cryptoKey,
+      combined
+    );
+    return new TextDecoder().decode(plaintext);
+  } catch (err) {
+    console.error("Failed to decrypt instagram_config.access_token:", err);
+    return undefined;
+  }
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+interface QualifierContact {
+  phone: string | null;
+  channel: string | null;
+  external_id: string | null;
+}
+
+// Dispatches to the right channel based on contact.channel — the single
+// send point both call sites below go through.
+async function sendText(
+  accountId: string,
+  contact: QualifierContact,
+  text: string
+): Promise<string | undefined> {
+  if (contact.channel === "instagram" && contact.external_id) {
+    return sendInstagramText(accountId, contact.external_id, text);
+  }
+  if (!contact.phone) return undefined;
+  return sendWhatsAppText(contact.phone, text);
+}
+
 async function logOutboundMessage(
   conversationId: string,
   accountId: string,
@@ -121,12 +231,12 @@ Deno.serve(async (req) => {
     // RLS), so scope the lookup by account_id, not just id.
     const { data: contact } = await supabase
       .from("contacts")
-      .select("phone")
+      .select("phone, channel, external_id")
       .eq("id", contact_id)
       .eq("account_id", account_id)
       .single();
 
-    if (!contact?.phone) {
+    if (!contact || (contact.channel !== "instagram" && !contact.phone)) {
       return new Response(JSON.stringify({ error: "Contact phone not found" }), { status: 400 });
     }
 
@@ -146,7 +256,7 @@ Deno.serve(async (req) => {
         .update({ bot_context: botContext, updated_at: new Date().toISOString() })
         .eq("id", conversation_id);
 
-      const messageId = await sendWhatsAppText(contact.phone, nextQuestion.question);
+      const messageId = await sendText(account_id, contact, nextQuestion.question);
       await logOutboundMessage(conversation_id, account_id, nextQuestion.question, messageId);
 
       return new Response(JSON.stringify({ done: false, next_field: nextQuestion.field }), { status: 200 });
@@ -182,7 +292,7 @@ Deno.serve(async (req) => {
       .eq("id", conversation_id);
 
     const thankYouMessage = "Obrigado pelas informações! Um especialista vai continuar sua atendimento em breve.";
-    const messageId = await sendWhatsAppText(contact.phone, thankYouMessage);
+    const messageId = await sendText(account_id, contact, thankYouMessage);
     await logOutboundMessage(conversation_id, account_id, thankYouMessage, messageId);
 
     // Delegate deal/tag creation to the existing Automations engine.

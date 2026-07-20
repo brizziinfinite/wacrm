@@ -184,6 +184,60 @@ async function processInboundMessage(
     status: "delivered",
   });
 
+  // AI Chatbot / Lead Qualifier dispatch — same bot_type-gated fetch to
+  // the edge functions as the WhatsApp route (route.ts ~671-738). Gap
+  // found via review: without this, an Instagram DM never reaches the
+  // qualifier/chatbot at all, even though the edge functions themselves
+  // now support sending the reply back over Instagram (sendText branch
+  // added in qualify-lead/process-ai-messages).
+  const { data: convBotData } = await supabaseAdmin()
+    .from("conversations")
+    .select("bot_type, bot_context")
+    .eq("id", conversation.id)
+    .single();
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (convBotData?.bot_type === "gemini" && supabaseUrl && serviceRoleKey) {
+    fetch(`${supabaseUrl}/functions/v1/process-ai-messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversation_id: conversation.id,
+        account_id: config.account_id,
+        contact_id: contactRecord.id,
+        message_body: event.message!.text,
+      }),
+    }).catch((err) => console.error("[ai-chatbot] request failed:", err));
+
+    if (!convBotData?.bot_context) {
+      await supabaseAdmin()
+        .from("conversations")
+        .update({ bot_context: { messages: [] } })
+        .eq("id", conversation.id);
+    }
+  }
+
+  if (convBotData?.bot_type === "qualifier" && supabaseUrl && serviceRoleKey) {
+    fetch(`${supabaseUrl}/functions/v1/qualify-lead`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversation_id: conversation.id,
+        account_id: config.account_id,
+        contact_id: contactRecord.id,
+        message_text: event.message!.text,
+      }),
+    }).catch((err) => console.error("[qualify-lead] request failed:", err));
+  }
+
   const parsedMessage: ParsedInbound = {
     kind: "text",
     text: event.message!.text!,

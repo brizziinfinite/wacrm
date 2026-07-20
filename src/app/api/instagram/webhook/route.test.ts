@@ -22,6 +22,8 @@ const mockConfig = {
   access_token: "encrypted-token",
 };
 
+let mockBotType: string | null = null;
+
 const mockSupabaseAdmin = {
   from: vi.fn((table: string) => {
     if (table === "instagram_config") {
@@ -56,6 +58,8 @@ const mockSupabaseAdmin = {
         select: () => ({
           eq: () => ({
             eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            single: () =>
+              Promise.resolve({ data: { bot_type: mockBotType, bot_context: null }, error: null }),
           }),
         }),
         insert: () => ({
@@ -64,6 +68,7 @@ const mockSupabaseAdmin = {
               Promise.resolve({ data: { id: "conv1", channel: "instagram" }, error: null }),
           }),
         }),
+        update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
       };
     }
     if (table === "messages") {
@@ -93,6 +98,10 @@ describe("Instagram webhook POST", () => {
   beforeEach(() => {
     mockDispatch.mockClear();
     mockRunAutomations.mockClear();
+    mockBotType = null;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
   });
 
   it("parses an inbound text DM and dispatches it to the flow engine", async () => {
@@ -130,5 +139,47 @@ describe("Instagram webhook POST", () => {
       text: "Olá, quero saber sobre o Pro",
       meta_message_id: "mid.123",
     });
+  });
+
+  it("dispatches to qualify-lead when the conversation's bot_type is qualifier", async () => {
+    mockBotType = "qualifier";
+
+    const body = {
+      object: "instagram",
+      entry: [
+        {
+          id: "17841400000000",
+          messaging: [
+            {
+              sender: { id: "1784140099999" },
+              recipient: { id: "17841400000000" },
+              timestamp: 1700000000000,
+              message: { mid: "mid.999", text: "Quero saber o preço" },
+            },
+          ],
+        },
+      ],
+    };
+
+    const request = new Request("http://localhost/api/instagram/webhook", {
+      method: "POST",
+      headers: { "x-hub-signature-256": "sha256=fake" },
+      body: JSON.stringify(body),
+    });
+
+    await POST(request);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/functions/v1/qualify-lead"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          conversation_id: "conv1",
+          account_id: "acc1",
+          contact_id: "contact1",
+          message_text: "Quero saber o preço",
+        }),
+      }),
+    );
   });
 });
