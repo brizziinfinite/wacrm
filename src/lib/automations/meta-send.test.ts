@@ -10,7 +10,7 @@ vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTemplateMessage: vi.fn(),
 }))
 vi.mock('@/lib/instagram/graph-api', () => ({
-  sendInstagramMessage: mockSendInstagram,
+  sendInstagramTextAndLog: mockSendInstagram,
 }))
 vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: (v: string) => v.replace('encrypted-', ''),
@@ -81,10 +81,11 @@ describe('engineSendText channel routing', () => {
 
     expect(mockSendInstagram).toHaveBeenCalledTimes(1)
     expect(mockSendText).not.toHaveBeenCalled()
-    expect(mockSendInstagram.mock.calls[0][0]).toEqual({
+    expect(mockSendInstagram.mock.calls[0][0]).toMatchObject({
+      accountId: 'acc1',
+      conversationId: 'conv2',
       igsid: '999',
       text: 'oi ig',
-      pageAccessToken: 'ig-tok',
     })
     expect(result.whatsapp_message_id).toBe('mid.456')
   })

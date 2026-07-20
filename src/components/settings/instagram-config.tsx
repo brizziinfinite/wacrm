@@ -30,6 +30,10 @@ import type { InstagramConfig as InstagramConfigType } from '@/types';
 
 const MASKED_TOKEN = '••••••••••••••••';
 
+// access_token/verify_token are never selected client-side (ciphertext has
+// no use in the browser) — the row shape here omits them accordingly.
+type InstagramConfigRow = Omit<InstagramConfigType, 'access_token' | 'verify_token'>;
+
 export function InstagramConfig() {
   const supabase = createClient();
   const { user, accountId, loading: authLoading, profileLoading } = useAuth();
@@ -38,7 +42,7 @@ export function InstagramConfig() {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [config, setConfig] = useState<InstagramConfigType | null>(null);
+  const [config, setConfig] = useState<InstagramConfigRow | null>(null);
 
   const [igBusinessAccountId, setIgBusinessAccountId] = useState('');
   const [pageId, setPageId] = useState('');
@@ -57,7 +61,7 @@ export function InstagramConfig() {
     try {
       const { data, error } = await supabase
         .from('instagram_config')
-        .select('id, instagram_business_account_id, page_id, username, is_active, user_id, verify_token, access_token')
+        .select('id, instagram_business_account_id, page_id, username, is_active, user_id')
         .eq('account_id', acctId)
         .maybeSingle();
 

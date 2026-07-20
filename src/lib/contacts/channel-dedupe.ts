@@ -23,7 +23,7 @@ export async function findExistingContactByExternalId(
 ): Promise<ExternalContact | null> {
   const { data, error } = await db
     .from("contacts")
-    .select("*")
+    .select("id, channel, external_id")
     .eq("account_id", accountId)
     .eq("channel", channel)
     .eq("external_id", externalId)

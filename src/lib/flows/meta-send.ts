@@ -7,7 +7,7 @@ import {
   type InteractiveListSection,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
-import { sendInstagramMessage } from '@/lib/instagram/graph-api'
+import { sendInstagramTextAndLog } from '@/lib/instagram/graph-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -78,41 +78,13 @@ export async function engineSendText(
       throw new Error('instagram contact missing external_id (IGSID)')
     }
 
-    const { data: igConfig, error: igConfigErr } = await db
-      .from('instagram_config')
-      .select('access_token')
-      .eq('account_id', args.accountId)
-      .single()
-    if (igConfigErr || !igConfig) {
-      throw new Error('Instagram not configured for this account')
-    }
-
-    const { messageId } = await sendInstagramMessage({
+    const { messageId } = await sendInstagramTextAndLog({
+      db,
+      accountId: args.accountId,
+      conversationId: args.conversationId,
       igsid: contact.external_id,
       text: args.text,
-      pageAccessToken: decrypt(igConfig.access_token),
     })
-
-    const { error: igMsgErr } = await db.from('messages').insert({
-      conversation_id: args.conversationId,
-      sender_type: 'bot',
-      content_type: 'text',
-      content_text: args.text,
-      message_id: messageId,
-      status: 'sent',
-    })
-    if (igMsgErr) {
-      throw new Error(`sent to Meta but DB insert failed: ${igMsgErr.message}`)
-    }
-
-    await db
-      .from('conversations')
-      .update({
-        last_message_text: args.text,
-        last_message_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', args.conversationId)
 
     return { whatsapp_message_id: messageId }
   }
@@ -221,12 +193,16 @@ export async function engineSendMedia(
 
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel')
     .eq('id', args.contactId)
     .eq('account_id', args.accountId)
     .maybeSingle()
   if (contactErr || !contact?.phone) {
     throw new Error('contact not found for this account')
+  }
+
+  if (contact.channel === 'instagram') {
+    throw new Error('Instagram does not support media sends from flows — text only')
   }
 
   const sanitized = sanitizePhoneForMeta(contact.phone)
@@ -373,12 +349,16 @@ async function sendInteractiveViaMeta(
   // Migration 017 moved both tables to account-scoped tenancy.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel')
     .eq('id', input.contactId)
     .eq('account_id', input.accountId)
     .maybeSingle()
   if (contactErr || !contact?.phone) {
     throw new Error('contact not found for this account')
+  }
+
+  if (contact.channel === 'instagram') {
+    throw new Error('Instagram does not support interactive sends from flows — text only')
   }
 
   const sanitized = sanitizePhoneForMeta(contact.phone)
