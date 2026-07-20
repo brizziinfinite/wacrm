@@ -7,6 +7,7 @@ import {
   type InteractiveListSection,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
+import { sendInstagramTextAndLog } from '@/lib/instagram/graph-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -64,14 +65,33 @@ export async function engineSendText(
 
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel, external_id')
     .eq('id', args.contactId)
     .eq('account_id', args.accountId)
     .maybeSingle()
-  if (contactErr || !contact?.phone) {
+  if (contactErr || !contact) {
     throw new Error('contact not found for this account')
   }
 
+  if (contact.channel === 'instagram') {
+    if (!contact.external_id) {
+      throw new Error('instagram contact missing external_id (IGSID)')
+    }
+
+    const { messageId } = await sendInstagramTextAndLog({
+      db,
+      accountId: args.accountId,
+      conversationId: args.conversationId,
+      igsid: contact.external_id,
+      text: args.text,
+    })
+
+    return { whatsapp_message_id: messageId }
+  }
+
+  if (!contact.phone) {
+    throw new Error('contact not found for this account')
+  }
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
@@ -173,12 +193,16 @@ export async function engineSendMedia(
 
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel')
     .eq('id', args.contactId)
     .eq('account_id', args.accountId)
     .maybeSingle()
   if (contactErr || !contact?.phone) {
     throw new Error('contact not found for this account')
+  }
+
+  if (contact.channel === 'instagram') {
+    throw new Error('Instagram does not support media sends from flows — text only')
   }
 
   const sanitized = sanitizePhoneForMeta(contact.phone)
@@ -325,12 +349,16 @@ async function sendInteractiveViaMeta(
   // Migration 017 moved both tables to account-scoped tenancy.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel')
     .eq('id', input.contactId)
     .eq('account_id', input.accountId)
     .maybeSingle()
   if (contactErr || !contact?.phone) {
     throw new Error('contact not found for this account')
+  }
+
+  if (contact.channel === 'instagram') {
+    throw new Error('Instagram does not support interactive sends from flows — text only')
   }
 
   const sanitized = sanitizePhoneForMeta(contact.phone)

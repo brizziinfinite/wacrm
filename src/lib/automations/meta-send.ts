@@ -1,4 +1,5 @@
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { sendInstagramTextAndLog } from '@/lib/instagram/graph-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -70,14 +71,36 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // new tenancy column.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, channel, external_id')
     .eq('id', input.contactId)
     .eq('account_id', input.accountId)
     .maybeSingle()
-  if (contactErr || !contact?.phone) {
+  if (contactErr || !contact) {
     throw new Error('contact not found for this account')
   }
 
+  if (contact.channel === 'instagram') {
+    if (input.kind === 'template') {
+      throw new Error('Instagram has no template message system — send text only')
+    }
+    if (!contact.external_id) {
+      throw new Error('instagram contact missing external_id (IGSID)')
+    }
+
+    const { messageId } = await sendInstagramTextAndLog({
+      db,
+      accountId: input.accountId,
+      conversationId: input.conversationId,
+      igsid: contact.external_id,
+      text: input.text,
+    })
+
+    return { whatsapp_message_id: messageId }
+  }
+
+  if (!contact.phone) {
+    throw new Error('contact not found for this account')
+  }
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)

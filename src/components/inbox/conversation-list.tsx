@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Camera, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import {
@@ -273,8 +273,15 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
-            {displayName}
+          <span className="flex min-w-0 items-center gap-1">
+            {conversation.channel === "instagram" ? (
+              <Camera className="h-3.5 w-3.5 shrink-0 text-pink-500" aria-label="Instagram" />
+            ) : (
+              <MessageCircle className="h-3.5 w-3.5 shrink-0 text-green-500" aria-label="WhatsApp" />
+            )}
+            <span className="truncate text-sm font-medium text-foreground">
+              {displayName}
+            </span>
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>

@@ -1077,6 +1077,7 @@ async function findOrCreateContact(
     .insert({
       account_id: accountId,
       user_id: configOwnerUserId,
+      channel: 'whatsapp',
       phone,
       name: name || phone,
     })
@@ -1126,6 +1127,7 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: configOwnerUserId,
       contact_id: contactId,
+      channel: 'whatsapp',
       whatsapp_client_id: whatsappClientId,
       whatsapp_from_number: whatsappFromNumber,
     })

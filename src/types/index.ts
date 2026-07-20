@@ -143,12 +143,14 @@ export interface ContactNote {
 }
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
+export type Channel = 'whatsapp' | 'instagram';
 
 export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
   status: ConversationStatus;
+  channel?: Channel;
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;
@@ -224,6 +226,17 @@ export interface WhatsAppConfig {
   subscribed_apps_at?: string;
   /** Last error from /register; cleared on success. */
   last_registration_error?: string;
+}
+
+export interface InstagramConfig {
+  id: string;
+  user_id: string;
+  instagram_business_account_id: string;
+  page_id: string;
+  access_token: string;
+  verify_token: string;
+  username?: string;
+  is_active: boolean;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

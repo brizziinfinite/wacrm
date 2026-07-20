@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.3.1";
+import { sendText } from "../_shared/meta-send.ts";
 
 interface QualifierBotContext {
   answers: Record<string, string>;
@@ -19,42 +20,6 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY") || "");
 
-// Single-tenant/global-config assumption: unlike engineSendText (in
-// src/lib/automations/meta-send.ts), which resolves a per-account, encrypted
-// whatsapp_config row, this reads one global WHATSAPP_PHONE_ID/META_ACCESS_TOKEN
-// env var pair. engineSendText is Node-only and unreachable from this Deno edge
-// function. Multi-tenant WhatsApp number support would need this function to
-// look up whatsapp_config by account_id similarly.
-async function sendWhatsAppText(phone: string, text: string): Promise<string | undefined> {
-  const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
-  const metaToken = Deno.env.get("META_ACCESS_TOKEN");
-  if (!whatsappPhoneId || !metaToken) return undefined;
-
-  const res = await fetch(
-    `https://graph.facebook.com/v18.0/${whatsappPhoneId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${metaToken}`,
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: phone.replace(/\D/g, ""),
-        type: "text",
-        text: { body: text },
-      }),
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) {
-    console.error("Meta API error:", data);
-    return undefined;
-  }
-  return data.messages?.[0]?.id;
-}
-
 async function logOutboundMessage(
   conversationId: string,
   accountId: string,
@@ -67,7 +32,7 @@ async function logOutboundMessage(
     content_type: "text",
     content_text: text,
     message_id: metaMessageId ?? null,
-    status: "sent",
+    status: metaMessageId ? "sent" : "failed",
   });
   // account_id is not a messages column per 001_initial_schema.sql — omitted intentionally.
   void accountId;
@@ -121,12 +86,12 @@ Deno.serve(async (req) => {
     // RLS), so scope the lookup by account_id, not just id.
     const { data: contact } = await supabase
       .from("contacts")
-      .select("phone")
+      .select("phone, channel, external_id")
       .eq("id", contact_id)
       .eq("account_id", account_id)
       .single();
 
-    if (!contact?.phone) {
+    if (!contact || (contact.channel !== "instagram" && !contact.phone)) {
       return new Response(JSON.stringify({ error: "Contact phone not found" }), { status: 400 });
     }
 
@@ -146,7 +111,7 @@ Deno.serve(async (req) => {
         .update({ bot_context: botContext, updated_at: new Date().toISOString() })
         .eq("id", conversation_id);
 
-      const messageId = await sendWhatsAppText(contact.phone, nextQuestion.question);
+      const messageId = await sendText(supabase, account_id, contact, nextQuestion.question);
       await logOutboundMessage(conversation_id, account_id, nextQuestion.question, messageId);
 
       return new Response(JSON.stringify({ done: false, next_field: nextQuestion.field }), { status: 200 });
@@ -182,7 +147,7 @@ Deno.serve(async (req) => {
       .eq("id", conversation_id);
 
     const thankYouMessage = "Obrigado pelas informações! Um especialista vai continuar sua atendimento em breve.";
-    const messageId = await sendWhatsAppText(contact.phone, thankYouMessage);
+    const messageId = await sendText(supabase, account_id, contact, thankYouMessage);
     await logOutboundMessage(conversation_id, account_id, thankYouMessage, messageId);
 
     // Delegate deal/tag creation to the existing Automations engine.

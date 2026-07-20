@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.3.1";
+import { sendText } from "../_shared/meta-send.ts";
 
 interface BotContext {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
@@ -90,31 +91,14 @@ Deno.serve(async (req) => {
       // Buscar contato e enviar mensagem de encerramento
       const { data: contactData } = await supabase
         .from("contacts")
-        .select("phone")
+        .select("phone, channel, external_id")
         .eq("id", contact_id)
         .single();
 
-      const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
-      const metaToken = Deno.env.get("META_ACCESS_TOKEN");
-
-      if (contactData?.phone && whatsappPhoneId && metaToken) {
-        fetch(
-          `https://graph.instagram.com/v18.0/${whatsappPhoneId}/messages`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${metaToken}`,
-            },
-            body: JSON.stringify({
-              messaging_product: "whatsapp",
-              recipient_type: "individual",
-              to: contactData.phone.replace(/\D/g, ""),
-              type: "text",
-              text: { body: endMessage },
-            }),
-          }
-        ).catch((err) => console.error("Failed to send end_keyword message:", err));
+      if (contactData) {
+        sendText(supabase, account_id, contactData, endMessage).catch((err) =>
+          console.error("Failed to send end_keyword message:", err)
+        );
       }
 
       return new Response(
@@ -173,14 +157,14 @@ Deno.serve(async (req) => {
       })
       .eq("id", conversation_id);
 
-    // 8. Buscar contato (número WhatsApp)
+    // 8. Buscar contato
     const { data: contactData, error: contactError } = await supabase
       .from("contacts")
-      .select("phone")
+      .select("phone, channel, external_id")
       .eq("id", contact_id)
       .single();
 
-    if (contactError || !contactData?.phone) {
+    if (contactError || !contactData || (contactData.channel !== "instagram" && !contactData.phone)) {
       console.error("Contact not found:", contactError);
       return new Response(
         JSON.stringify({ error: "Contact phone not found" }),
@@ -188,56 +172,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 9. Enviar resposta via WhatsApp (Meta API)
-    const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_ID");
-    const metaToken = Deno.env.get("META_ACCESS_TOKEN");
+    // 9. Enviar resposta (WhatsApp ou Instagram, conforme contactData.channel)
+    const metaMessageId = await sendText(supabase, account_id, contactData, response);
 
-    if (whatsappPhoneId && metaToken) {
-      const sendResponse = await fetch(
-        `https://graph.instagram.com/v18.0/${whatsappPhoneId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${metaToken}`,
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: contactData.phone.replace(/\D/g, ""),
-            type: "text",
-            text: { body: response },
-          }),
-        }
+    // 10. Criar mensagem de resposta no banco (para UI). Columns match
+    // messages table schema (001_initial_schema.sql + 010 widening) —
+    // sender_type/content_text/content_type/message_id, not the
+    // body/direction/from_ai columns this insert used before (those
+    // don't exist on the table; the insert was silently failing).
+    // status reflects whether the Meta/Instagram send actually succeeded —
+    // sendText() returns undefined on failure instead of throwing.
+    await supabase.from("messages").insert({
+      conversation_id,
+      sender_type: "bot",
+      content_type: "text",
+      content_text: response,
+      message_id: metaMessageId ?? null,
+      status: metaMessageId ? "sent" : "failed",
+    });
+
+    if (!metaMessageId) {
+      console.error("Failed to deliver AI bot response via", contactData.channel);
+      return new Response(
+        JSON.stringify({ error: "Failed to send bot response", response }),
+        { status: 502 }
       );
-
-      const sendData = await sendResponse.json();
-
-      if (!sendResponse.ok) {
-        console.error("Meta API error:", sendData);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to send message via WhatsApp",
-            meta_error: sendData,
-          }),
-          { status: 500 }
-        );
-      }
-
-      const metaMessageId = sendData.messages?.[0]?.id;
-
-      // 10. Criar mensagem de resposta no banco (para UI)
-      await supabase.from("messages").insert({
-        conversation_id,
-        contact_id,
-        account_id,
-        body: response,
-        direction: "outbound",
-        status: "sent",
-        from_ai: true,
-        message_id: metaMessageId, // rastrear resposta da IA
-        created_at: new Date().toISOString(),
-      });
     }
 
     return new Response(
